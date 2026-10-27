@@ -1,0 +1,6 @@
+ragarag*
+.history
+__pycache__
+venv/
+*.db
+.git

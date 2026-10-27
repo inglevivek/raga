@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: raga-mlops
+  labels:
+    app.kubernetes.io/name: raga
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: raga-config
+  namespace: raga-mlops
+data:
+  FLASK_APP: "app.py"
+  FLASK_RUN_HOST: "0.0.0.0"
+  MODEL_NAME: "Qwen/Qwen3-0.6B"
+  PORT: "5000"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: raga-inference-deployment
+  namespace: raga-mlops
+  labels:
+    app: raga-inference
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: raga-inference
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: raga-inference
+    spec:
+      containers:
+      - name: raga-container
+        image: raga:v1
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
+            name: raga-config
+        ports:
+        - containerPort: 5000
+          name: http-api
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2000m"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: "16Gi"
+            cpu: "4000m"
+            nvidia.com/gpu: "1"
+        readinessProbe:
+          tcpSocket:
+            port: 5000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: raga-service
+  namespace: raga-mlops
+spec:
+  type: LoadBalancer
+  selector:
+    app: raga-inference
+  ports:
+  - name: http
+    port: 80
+    targetPort: 5000
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: raga-hpa
+  namespace: raga-mlops
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: raga-inference-deployment
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80

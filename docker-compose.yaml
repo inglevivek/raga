@@ -1,0 +1,23 @@
+services:
+  raga:
+    image: raga:v1
+    build: .
+    container_name: raga-flask-app
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/Raga
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_RUN_HOST=0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+
+
+      
